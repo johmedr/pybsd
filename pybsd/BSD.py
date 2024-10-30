@@ -4,6 +4,7 @@ import numpy as np
 from jax import numpy as jnp 
 from collections import OrderedDict
 
+
 class BSD(VariationalLaplaceEstimator):
     def __init__(self, Hz, freqs, *args, **kwargs): 
         pE, pC = self._prepare(freqs)
@@ -110,12 +111,12 @@ class BSD(VariationalLaplaceEstimator):
         p = unvectorize(p, self._pStruct)
         spec = self.param2spec(p)
 
-        f = spec['freq']; 
-        a = spec['ampl']; 
-        S = spec['fwhm']**2/(8 * jnp.log(2)); 
-        b = spec['noise']; 
-        Hc = jnp.vecdot(a, jnp.exp(-(self.Hz.reshape((1,-1))- f)**2/(2*S)), axis=0)
-        Hc +=  b[0] * self.Hz**b[1]
+        f = spec['freq']
+        a = spec['ampl']
+        S = spec['fwhm']**2/(8 * jnp.log(2))
+        b = spec['noise']
+        Hc = jnp.vecdot(a, jnp.exp(-(self.Hz.reshape((1, -1)) - f)**2/(2*S)), axis=0)
+        Hc += b[0] * self.Hz**b[1]
         
         return Hc
         

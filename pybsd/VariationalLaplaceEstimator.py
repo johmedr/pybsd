@@ -3,7 +3,7 @@ import jax.scipy as jsp
 import jax
 from jax import lax
 from functools import partial
-from jax import vmap, grad, hessian, jacfwd
+from jax import jacfwd
 import numpy as np
 from abc import ABC, abstractmethod
 import warnings
@@ -14,7 +14,7 @@ class VariationalLaplaceEstimator(ABC):
     def __init__(self, pE, pC, hE, hC, Q=None, atol=1e-3):
         self._atol = atol
         self.set_priors(pE, pC)
-        self._checkset_forward()
+        self._check_set_forward()
         self.set_hyperpriors(hE, hC, Q)
 
 
@@ -25,7 +25,7 @@ class VariationalLaplaceEstimator(ABC):
     def forward(self, u):
         pass
 
-    def _checkset_forward(self): 
+    def _check_set_forward(self):
         self._y0 = self.forward(self._pE)
 
         if len(self._y0.shape) > 2:
@@ -454,7 +454,6 @@ class VariationalLaplaceEstimator(ABC):
         C['Eh'] = self._hE + C['eh']
 
         return C
-
 
 
     @partial(jax.jit, static_argnums=0) 
