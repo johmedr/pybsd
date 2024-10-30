@@ -1,5 +1,5 @@
 from .VariationalLaplaceEstimator import VariationalLaplaceEstimator
-from .vec import vectorize, unvectorize
+from .vectorize import vectorize, unvectorize
 import numpy as np
 from jax import numpy as jnp 
 from collections import OrderedDict

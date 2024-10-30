@@ -2,6 +2,7 @@ import numpy as np
 from jax import numpy as jnp
 from collections import OrderedDict
 
+
 def vectorize(X, *args):
     """
     Vectorize a numeric, list, or dictionary array in Python.
