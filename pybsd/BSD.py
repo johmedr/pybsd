@@ -9,12 +9,15 @@ class BSD(VariationalLaplaceEstimator):
     def __init__(self, Hz, freqs, *args, **kwargs): 
         pE, pC = self._prepare(freqs)
         self.Hz = jnp.asarray(Hz)
-        
-        hE = jnp.array([10])
-        hC = jnp.array([1/256])
+
+        hE = kwargs.pop('hE', jnp.array([12]))
+        hC = kwargs.pop('hC', jnp.array([1/256]))
         Q = jnp.eye(self.Hz.size)
+        P = self._pStruct
+        P['a'] *= 0
+        P = vectorize(P)
         
-        super().__init__(pE, pC, hE, hC, Q, *args, **kwargs)
+        super().__init__(pE, pC, hE, hC, Q, P, *args, **kwargs)
         
     def _prepare(self, freqs):
         freqs = jnp.asarray(freqs)
@@ -35,7 +38,7 @@ class BSD(VariationalLaplaceEstimator):
         self.S = S
         self.W = W
         
-        a = 0 * W
+        a = -3. + 0*W
         b = jnp.zeros((2,1))
         
         pE = OrderedDict(
@@ -45,18 +48,21 @@ class BSD(VariationalLaplaceEstimator):
             b=b
         )
         pC = OrderedDict(
-            f=0*W + 1,
-            S=0*S + 2, 
-            a=0*a + 2, 
-            b=0*b + 1
+            f=0*W + 16,
+            S=0*S + 16,
+            a=0*a + 16,
+            b=0*b + 16
          )
         self._pStruct = pE
         
         return vectorize(pE), vectorize(pC)
         
     
-    def param2spec(self, P): 
+    def param2spec(self, P):
         spec = OrderedDict()
+
+        if isinstance(P, (tuple, list, np.ndarray, jnp.ndarray)):
+            P = unvectorize(P, self._pStruct)
 
         # forward: a
         if 'a' in P:
@@ -118,5 +124,31 @@ class BSD(VariationalLaplaceEstimator):
         Hc = jnp.vecdot(a, jnp.exp(-(self.Hz.reshape((1, -1)) - f)**2/(2*S)), axis=0)
         Hc += b[0] * self.Hz**b[1]
         
+        return Hc
+
+    def periodic_components(self, p=None):
+        if p is None:
+            p = self._results['Ep']
+
+        p = unvectorize(p, self._pStruct)
+        spec = self.param2spec(p)
+
+        f = spec['freq']
+        a = spec['ampl']
+        S = spec['fwhm']**2/(8 * jnp.log(2))
+
+        Hc = jnp.expand_dims(a, -1) * jnp.exp(-(self.Hz.reshape((1, -1)) - f)**2/(2*S))
+        return Hc
+
+    def aperiodic_component(self, p):
+        if p is None:
+            p = self._results['Ep']
+
+        p = unvectorize(p, self._pStruct)
+        spec = self.param2spec(p)
+
+        b = spec['noise']
+
+        Hc = b[0] * self.Hz**b[1]
         return Hc
         

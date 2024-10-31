@@ -11,8 +11,9 @@ import time
 
 
 class VariationalLaplaceEstimator(ABC):
-    def __init__(self, pE, pC, hE, hC, Q=None, atol=1e-3):
+    def __init__(self, pE, pC, hE, hC, Q=None, P=None, atol=1e-3):
         self._atol = atol
+        self._P = P
         self.set_priors(pE, pC)
         self._check_set_forward()
         self.set_hyperpriors(hE, hC, Q)
@@ -236,10 +237,15 @@ class VariationalLaplaceEstimator(ABC):
         F = Fy + Fp + Fh
         return F.squeeze()
 
+
+
     def fit(self, y, qE=None, gE=None, Emax=64, Mmax=8): 
         # Handle q shape
         if qE is None:
-            ep = jnp.zeros(self._np)
+            if self._P is not None:
+                ep = (self._P - self._pE)
+            else:
+                ep = jnp.zeros(self._np)
         else:
             try:
                 ep = (qE - self._pE) 
@@ -272,19 +278,19 @@ class VariationalLaplaceEstimator(ABC):
 
         # Priors in projected space 
         pE = self._pE 
-        hE = self._hE 
+        hE = self._hE
 
-        # Jacobian function for forward function 
+        # Jacobian function for forward function
         forward = lambda ep: self.forward(pE + ep).reshape((ny,)) @ self._Uy
         try:
             forward = jax.jit(forward)
-        except: 
+        except:
             pass
 
         Jf = jacfwd(forward, argnums=0)
         try:
             Jf = jax.jit(Jf)
-        except: 
+        except:
             pass
 
 
@@ -386,7 +392,7 @@ class VariationalLaplaceEstimator(ABC):
 
                 # Check convergence
                 dF    = jnp.vecdot(dFdh, dh) 
-                if dF <  self._atol: 
+                if dF <  self._atol:
                     break
                 
             # Posterior covariance of h
@@ -418,6 +424,9 @@ class VariationalLaplaceEstimator(ABC):
                 C['Cp'] = Cp
                 C['eh'] = eh
                 C['Ch'] = Ch
+                C['Hp'] = Hp
+                C['dfdp'] = dfdp
+                C['iSy'] = iSy
 
                 dFdp = (dfdp.mT @ iSy @ ey.mT).sum(-1) - ipC @ ep
                 dFdpp = Hp
@@ -429,7 +438,6 @@ class VariationalLaplaceEstimator(ABC):
                 ep = C['ep']
                 Cp = C['Cp']
                 eh = C['eh']
-                Ch = C['Ch']
                 v = max(v - 2, -16)
 
                 print(f'EM: (-) ', end='')
@@ -450,11 +458,24 @@ class VariationalLaplaceEstimator(ABC):
                 print(' convergence.')
                 break
 
+        if not all(criterion):
+            print(' end of iterations.')
+
         C['Ep'] = self._pE + C['ep']
         C['Eh'] = self._hE + C['eh']
+        C['Cy'] = jnp.linalg.inv(C['iSy'] - C['dfdp'] @ C['Hp'] @ C['dfdp'].mT + Iy)
+
+        self._results = C
+        self._fitted = True
 
         return C
 
+    @property
+    def F(self):
+        if not self._fitted:
+            raise ValueError('F is not fitted yet.')
+
+        return self._results['F']
 
     @partial(jax.jit, static_argnums=0) 
     def _compute_dx(self, f, dfdx, t, ): 
